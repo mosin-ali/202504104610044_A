@@ -1,0 +1,207 @@
+# `index.html`
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List App</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>To-Do List</h1>
+        <div class="input-section">
+            <input type="text" id="taskInput" placeholder="Enter task">
+            <button onclick="addTask()">Add</button>
+        </div>
+        <ul id="taskList"></ul>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:4567/tasks";
+
+        async function loadTasks() {
+            const response = await fetch(API_URL);
+            const tasks = await response.json();
+            const taskList = document.getElementById("taskList");
+            taskList.innerHTML = "";
+
+            tasks.forEach((task, index) => {
+                const li = document.createElement("li");
+                li.innerHTML = `
+                    <span>${task}</span>
+                    <div>
+                        <button onclick="updateTask(${index})">Update</button>
+                        <button onclick="deleteTask(${index})">Delete</button>
+                    </div>
+                `;
+                taskList.appendChild(li);
+            });
+        }
+
+        async function addTask() {
+            const input = document.getElementById("taskInput");
+            const task = input.value.trim();
+            if (task === "") return;
+
+            await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ task: task })
+            });
+
+            input.value = "";
+            loadTasks();
+        }
+
+        async function updateTask(index) {
+            const newTask = prompt("Enter updated task:");
+            if (!newTask) return;
+
+            await fetch(`${API_URL}/${index}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ task: newTask })
+            });
+
+            loadTasks();
+        }
+
+        async function deleteTask(index) {
+            await fetch(`${API_URL}/${index}`, {
+                method: "DELETE"
+            });
+            loadTasks();
+        }
+
+        loadTasks();
+    </script>
+</body>
+</html>
+```
+
+---
+
+# `style.css`
+
+```css
+body {
+    font-family: Arial, sans-serif;
+    background: #f0f2f5;
+    display: flex;
+    justify-content: center;
+    margin-top: 50px;
+}
+
+.container {
+    width: 400px;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+h1 {
+    text-align: center;
+}
+
+.input-section {
+    display: flex;
+    gap: 10px;
+}
+
+input {
+    flex: 1;
+    padding: 10px;
+}
+
+button {
+    padding: 10px;
+    background: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+button:hover {
+    background: #0056b3;
+}
+
+ul {
+    list-style: none;
+    padding: 0;
+    margin-top: 20px;
+}
+
+li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+}
+
+li div {
+    display: flex;
+    gap: 5px;
+}
+```
+
+---
+
+# `TodoApp.java`
+
+```java
+import static spark.Spark.*;
+import com.google.gson.Gson;
+import java.util.*;
+
+public class TodoApp {
+    private static final List<String> tasks = new ArrayList<>();
+    private static final Gson gson = new Gson();
+
+    public static void main(String[] args) {
+        port(4567);
+
+        // Enable CORS
+        before((request, response) -> {
+            response.header("Access-Control-Allow-Origin", "*");
+            response.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+            response.header("Access-Control-Allow-Headers", "Content-Type");
+        });
+
+        options("/*", (request, response) -> "OK");
+
+        // Get all tasks
+        get("/tasks", (request, response) -> {
+            response.type("application/json");
+            return gson.toJson(tasks);
+        });
+
+        // Add task
+        post("/tasks", (request, response) -> {
+            Map<String, String> data = gson.fromJson(request.body(), Map.class);
+            tasks.add(data.get("task"));
+            return "Task added";
+        });
+
+        // Update task
+        put("/tasks/:id", (request, response) -> {
+            int id = Integer.parseInt(request.params(":id"));
+            Map<String, String> data = gson.fromJson(request.body(), Map.class);
+            tasks.set(id, data.get("task"));
+            return "Task updated";
+        });
+
+        // Delete task
+        delete("/tasks/:id", (request, response) -> {
+            int id = Integer.parseInt(request.params(":id"));
+            tasks.remove(id);
+            return "Task deleted";
+        });
+    }
+}
+```
